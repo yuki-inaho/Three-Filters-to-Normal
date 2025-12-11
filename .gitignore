@@ -179,3 +179,4 @@ cuda_code/data/torusknot/
 
 # Claude Code
 .claude/local*
+c_code/example
