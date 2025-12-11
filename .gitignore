@@ -167,6 +167,7 @@ test/build/
 c_code/build/
 cuda_code/build/
 cuda_code/data/torusknot/
+apps/build/
 
 # Output files
 *.bin
@@ -176,6 +177,10 @@ cuda_code/data/torusknot/
 !cuda_code/result/*.png
 !c_code/data/**/*.png
 !figs/*.png
+!apps/sample/*.png
+
+# Meta files (bin2png output)
+*.meta
 
 # Claude Code
 .claude/local*

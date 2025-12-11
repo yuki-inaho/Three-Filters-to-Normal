@@ -19,7 +19,7 @@ default:
     @just --list
 
 # Build all
-all: build-cpp build-cuda build-test
+all: build-cpp build-cuda build-test build-apps
 
 # === C++ ===
 
@@ -184,10 +184,71 @@ bench-cuda: build-test
 bench: bench-cpp bench-cuda
     @echo "=== Benchmark completed ==="
 
+# === Apps (tftn CLI) ===
+#
+# tftn: Unified CLI tool for surface normal estimation from depth images
+# bin2png: Convert float32 .bin depth to uint16 PNG
+#
+# Usage examples:
+#   just build-apps                              # Build tools
+#   just tftn-sample                             # Run with sample data
+#   just tftn-sample --set tftn_show true        # Display result
+#   ./apps/build/tftn -i depth.png -o normal.png --fx 500 --fy 500
+#   ./apps/build/tftn -i depth.png --show        # Display only
+#   ./apps/build/tftn -i depth.png -o out.png -k sobel -a median
+#
+# Input: uint16 PNG depth image (normalized)
+# Output: 16-bit RGB normal map
+
+# Sample data parameters
+sample_depth := "apps/sample/torusknot_depth.png"
+sample_scale := "1.94382"
+sample_fx := "1400"
+sample_fy := "1380"
+sample_uo := "350"
+sample_vo := "200"
+tftn_kernel := "basic"
+tftn_aggregation := "mean"
+tftn_show := "false"
+
+# Build apps (tftn, bin2png)
+build-apps:
+    cd apps && mkdir -p build && cd build && cmake .. && make -j4
+
+# Run tftn with sample data
+tftn-sample: build-apps
+    @echo "=== tftn Sample ({{tftn_kernel}} + {{tftn_aggregation}}) ==="
+    @if [ "{{tftn_show}}" = "true" ]; then \
+        ./apps/build/tftn \
+            -i {{sample_depth}} \
+            --show \
+            --fx {{sample_fx}} --fy {{sample_fy}} --uo {{sample_uo}} --vo {{sample_vo}} \
+            --scale {{sample_scale}} \
+            -k {{tftn_kernel}} -a {{tftn_aggregation}}; \
+    else \
+        ./apps/build/tftn \
+            -i {{sample_depth}} \
+            -o apps/sample/torusknot_normal.png \
+            --fx {{sample_fx}} --fy {{sample_fy}} --uo {{sample_uo}} --vo {{sample_vo}} \
+            --scale {{sample_scale}} \
+            -k {{tftn_kernel}} -a {{tftn_aggregation}}; \
+    fi
+
+# Convert .bin to .png (regenerate sample)
+bin2png-sample: build-apps
+    ./apps/build/bin2png \
+        -i matlab_code/torusknot/depth/000001.bin \
+        -o apps/sample/torusknot_depth.png \
+        -W 640 -H 480 --scale 600
+
+# Clean apps build
+clean-apps:
+    rm -rf apps/build
+
 # === Clean ===
 
 # Clean all builds
-clean: clean-cpp clean-cuda clean-test
+clean: clean-cpp clean-cuda clean-test clean-apps
     rm -rf temp/*.bin temp/*.png
 
 # === Utility ===
