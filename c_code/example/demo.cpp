@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <eigen3/Eigen/Core>
 #include "tftn/tftn.h"
 #include "cvrgbd/rgbd.hpp"
@@ -41,15 +42,18 @@ int main(){
   }
 
   //convert depth image to range image. watch out the problem of bgr and rgb.
+  cv::Mat range_image;
   cv::rgbd::depthTo3d(depth_image, camera, range_image);
   std::vector<cv::Mat> matpart(3);
   cv::split(range_image, matpart);
+  cv::Mat result;
   result.create(matpart[0].rows, matpart[0].cols, CV_32FC3);
 
   /*******************the core code*********************/
   TFTN(range_image, camera, R_MEANS_4, &result);
   /*****************************************/
 
+  cv::Mat output;
   output.create(result.rows, result.cols, CV_16UC3);
   for (int i = 0; i < result.rows; ++ i){
     for (int j = 0; j < result.cols; ++ j){

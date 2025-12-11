@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <fstream>
+#include <cstring>
 #include <cuda_runtime.h>
 #include "opencv2/opencv.hpp"
 
@@ -57,12 +59,12 @@ inline void load_data(
 	char data_dir[256];
 	char frm_num2str[20];
 	char dataset_name[50];
-	strcpy_s(data_dir, "..//..//data//");
+	strcpy(data_dir, "../data/");
 	sprintf(frm_num2str, "%06d", frm);
 	if (dataname == torusknot){
-		strcat_s(data_dir, "torusknot//depth//");
-		strcat_s(data_dir, frm_num2str);
-		strcat_s(data_dir, ".bin");
+		strcat(data_dir, "torusknot/depth/");
+		strcat(data_dir, frm_num2str);
+		strcat(data_dir, ".bin");
 	}
 	// open filestream && read buffer
 	cv::Mat data_mat(cv::Size(umax, vmax), CV_32F);

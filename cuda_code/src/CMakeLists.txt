@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 
 add_definitions(-D_USE_MATH_DEFINES)
-find_package(OpenCV 4.2.0 REQUIRED EXACT)
+find_package(OpenCV 4 REQUIRED)
 find_package(CUDA)
 include(FindCUDA)
 
