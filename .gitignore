@@ -160,3 +160,22 @@ buildNumber.properties
 logs/
 
 .serena
+
+# Project specific
+temp/
+test/build/
+c_code/build/
+cuda_code/build/
+cuda_code/data/torusknot/
+
+# Output files
+*.bin
+*.png
+!matlab_code/**/*.png
+!cuda_code/data/*.png
+!cuda_code/result/*.png
+!c_code/data/**/*.png
+!figs/*.png
+
+# Claude Code
+.claude/local*
