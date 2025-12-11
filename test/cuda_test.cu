@@ -6,6 +6,7 @@
 #include <fstream>
 #include <cstring>
 #include <string>
+#include <chrono>
 #include <cuda_runtime.h>
 #include "opencv2/opencv.hpp"
 
@@ -22,6 +23,7 @@ struct Config {
     std::string output_prefix = "cuda_normal";
     std::string kernel = "basic";       // "basic" or "sobel"
     std::string aggregation = "median"; // "mean" or "median"
+    int iterations = 1;                 // Number of iterations for benchmark
     bool help = false;
 };
 
@@ -53,6 +55,7 @@ void print_usage(const char* prog_name) {
               << "  --offset VALUE         Depth offset multiplier (default: 600)\n"
               << "  -k, --kernel TYPE      Gradient kernel: basic, sobel (default: basic)\n"
               << "  -a, --aggregation TYPE nz aggregation: mean, median (default: median)\n"
+              << "  -n, --iterations N     Number of iterations for benchmark (default: 1)\n"
               << "  -h, --help             Show this help message\n"
               << "\nKernel types:\n"
               << "  basic  - 2-point gradient: (D[u-1] - D[u+1]) * f\n"
@@ -115,6 +118,8 @@ Config parse_args(int argc, char** argv) {
                 exit(1);
             }
             config.aggregation = value;
+        } else if (key == "-n" || key == "--iterations") {
+            config.iterations = std::stoi(value);
         } else if (arg[0] != '-' && config.input_path == "../matlab_code/torusknot/depth/000001.bin") {
             // Positional argument: treat as input path (backward compatibility)
             config.input_path = arg;
@@ -571,35 +576,52 @@ int main(int argc, char** argv) {
     cudaBindTextureToArray(D_tex, D_texture, desc);
 
     // Kernel dispatch based on kernel type and aggregation method
-    std::cout << "Running CUDA kernel (" << config.kernel << " + " << config.aggregation << ")..." << std::endl;
+    std::cout << "Running CUDA kernel (" << config.kernel << " + " << config.aggregation
+              << ", iterations=" << config.iterations << ")..." << std::endl;
 
-    if (config.kernel == "sobel") {
-        if (config.aggregation == "median") {
-            normal_estimation_sobel_median<<<blocks, threads>>>(
-                nx_dev, ny_dev, nz_dev, Volume_dev,
-                config.width, config.height, config.fx, config.fy,
-                normalization, visualization);
-        } else {  // mean
-            normal_estimation_sobel_mean<<<blocks, threads>>>(
-                nx_dev, ny_dev, nz_dev,
-                config.width, config.height, config.fx, config.fy,
-                normalization, visualization);
+    // Lambda for kernel dispatch
+    auto run_kernel = [&]() {
+        if (config.kernel == "sobel") {
+            if (config.aggregation == "median") {
+                normal_estimation_sobel_median<<<blocks, threads>>>(
+                    nx_dev, ny_dev, nz_dev, Volume_dev,
+                    config.width, config.height, config.fx, config.fy,
+                    normalization, visualization);
+            } else {  // mean
+                normal_estimation_sobel_mean<<<blocks, threads>>>(
+                    nx_dev, ny_dev, nz_dev,
+                    config.width, config.height, config.fx, config.fy,
+                    normalization, visualization);
+            }
+        } else {  // basic
+            if (config.aggregation == "median") {
+                normal_estimation_bg_median<<<blocks, threads>>>(
+                    nx_dev, ny_dev, nz_dev, Volume_dev,
+                    config.width, config.height, config.fx, config.fy,
+                    normalization, visualization);
+            } else {  // mean
+                normal_estimation_bg_mean<<<blocks, threads>>>(
+                    nx_dev, ny_dev, nz_dev,
+                    config.width, config.height, config.fx, config.fy,
+                    normalization, visualization);
+            }
         }
-    } else {  // basic
-        if (config.aggregation == "median") {
-            normal_estimation_bg_median<<<blocks, threads>>>(
-                nx_dev, ny_dev, nz_dev, Volume_dev,
-                config.width, config.height, config.fx, config.fy,
-                normalization, visualization);
-        } else {  // mean
-            normal_estimation_bg_mean<<<blocks, threads>>>(
-                nx_dev, ny_dev, nz_dev,
-                config.width, config.height, config.fx, config.fy,
-                normalization, visualization);
-        }
+        cudaDeviceSynchronize();
+    };
+
+    // Warm-up run
+    run_kernel();
+
+    // Benchmark runs
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int iter = 0; iter < config.iterations; iter++) {
+        run_kernel();
     }
-
-    cudaDeviceSynchronize();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    double avg_ms = duration.count() / 1000.0 / config.iterations;
+    std::cout << "  Total time: " << duration.count() / 1000.0 << " ms (" << config.iterations << " iterations)" << std::endl;
+    std::cout << "  Average time per iteration: " << avg_ms << " ms" << std::endl;
 
     cudaMemcpy(nx, nx_dev, float_memsize, cudaMemcpyDeviceToHost);
     cudaMemcpy(ny, ny_dev, float_memsize, cudaMemcpyDeviceToHost);

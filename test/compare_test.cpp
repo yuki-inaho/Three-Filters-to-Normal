@@ -7,6 +7,7 @@
 #include <cmath>
 #include <string>
 #include <unordered_map>
+#include <chrono>
 #include <opencv2/opencv.hpp>
 #include <opencv2/rgbd.hpp>
 #include "tftn/tftn.h"
@@ -26,8 +27,9 @@ struct Config {
     std::string kernel = "basic";       // "basic" or "sobel"
     std::string aggregation = "median"; // "mean" or "median"
     std::string params_path;            // Optional params.txt path
+    int iterations = 1;                 // Number of iterations for benchmark
     bool help = false;
-};;
+};
 
 // Convert kernel/aggregation strings to TFTN_METHOD
 TFTN_METHOD toTftnMethod(const std::string& kernel, const std::string& agg) {
@@ -86,6 +88,7 @@ void print_usage(const char* prog_name) {
               << "  -m, --method N         TFTN method (overrides kernel/aggregation if set)\n"
               << "                         6=R_MEDIAN_STABLE_4_8, 7=R_MEANS_4_8,\n"
               << "                         8=R_MEANS_SOBEL, 9=R_MEDIAN_SOBEL\n"
+              << "  -n, --iterations N     Number of iterations for benchmark (default: 1)\n"
               << "  -h, --help             Show this help message\n"
               << "\nKernel types:\n"
               << "  basic  - 2-point gradient -> TFTN method 6 (median) or 7 (mean)\n"
@@ -138,6 +141,8 @@ Config parse_args(int argc, char** argv) {
             config.offset = std::stoi(value);
         } else if (key == "-p" || key == "--params") {
             config.params_path = value;
+        } else if (key == "-n" || key == "--iterations") {
+            config.iterations = std::stoi(value);
         } else if (key == "-m" || key == "--method") {
             config.method = std::stoi(value);
         } else if (key == "-k" || key == "--kernel") {
@@ -270,11 +275,24 @@ int main(int argc, char** argv) {
     // Camera matrix for C++ TFTN
     cv::Matx33d camera(config.fx, 0, config.uo, 0, config.fy, config.vo, 0, 0, 1);
 
-    // Run C++ TFTN
+    // Run C++ TFTN with timing
     cv::Mat result;
     std::cout << "Running C++ TFTN (" << config.kernel << " + " << config.aggregation
-              << ", method=" << tftn_method << ")..." << std::endl;
+              << ", method=" << tftn_method << ", iterations=" << config.iterations << ")..." << std::endl;
+
+    // Warm-up run
     TFTN(range_image, camera, tftn_method, &result);
+
+    // Benchmark runs
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int iter = 0; iter < config.iterations; iter++) {
+        TFTN(range_image, camera, tftn_method, &result);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    double avg_ms = duration.count() / 1000.0 / config.iterations;
+    std::cout << "  Total time: " << duration.count() / 1000.0 << " ms (" << config.iterations << " iterations)" << std::endl;
+    std::cout << "  Average time per iteration: " << avg_ms << " ms" << std::endl;
 
     // Extract and normalize results
     float* nx_cpp = new float[pixel_number];

@@ -142,6 +142,48 @@ demo: demo-cpp demo-cuda
     @echo "C++ output: test/build/cpp_demo.png"
     @echo "CUDA output: test/build/cuda_demo.png"
 
+# === Benchmark ===
+#
+# Usage examples:
+#   just bench                                    # Default (100 iterations)
+#   just --set iterations 50 bench               # Custom iteration count
+#   just --set kernel sobel bench                # Sobel kernel
+#   just --set aggregation mean bench            # Mean aggregation
+#   just --set kernel sobel --set aggregation mean --set iterations 100 bench
+#
+# Results (640x480, basic + median):
+#   C++:  ~11 ms/iter
+#   CUDA: ~0.2 ms/iter (approx 60x faster)
+
+# Default benchmark iterations
+iterations := "100"
+
+# Run C++ benchmark
+bench-cpp: build-test
+    @echo "=== C++ Benchmark ({{kernel}} + {{aggregation}}, {{iterations}} iterations) ==="
+    cd test/build && ./cpp_test \
+        --input {{input}} \
+        --output bench_cpp \
+        --width {{width}} --height {{height}} \
+        --fx {{fx}} --fy {{fy}} --uo {{uo}} --vo {{vo}} \
+        --offset {{offset}} --kernel {{kernel}} --aggregation {{aggregation}} \
+        --iterations {{iterations}}
+
+# Run CUDA benchmark
+bench-cuda: build-test
+    @echo "=== CUDA Benchmark ({{kernel}} + {{aggregation}}, {{iterations}} iterations) ==="
+    cd test/build && ./cuda_test \
+        --input {{input}} \
+        --output bench_cuda \
+        --width {{width}} --height {{height}} \
+        --fx {{fx}} --fy {{fy}} --uo {{uo}} --vo {{vo}} \
+        --offset {{offset}} --kernel {{kernel}} --aggregation {{aggregation}} \
+        --iterations {{iterations}}
+
+# Run both benchmarks
+bench: bench-cpp bench-cuda
+    @echo "=== Benchmark completed ==="
+
 # === Clean ===
 
 # Clean all builds
